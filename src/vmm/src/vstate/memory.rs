@@ -124,12 +124,24 @@ pub fn anonymous(
 
 /// Creates a GuestMemoryMmap given a `file` containing the data
 /// and a `state` containing mapping information.
+///
+/// When `shared` is `true`, the file is mapped with `MAP_SHARED`
+/// instead of the default `MAP_PRIVATE`. This is opt-in for
+/// cooperative-snapshot tooling that needs an external process
+/// (holding the same backing fd open) to observe guest writes.
+/// Existing callers pass `shared=false` and get unchanged behavior.
 pub fn snapshot_file(
     file: File,
     regions: impl Iterator<Item = (GuestAddress, usize)>,
     track_dirty_pages: bool,
+    shared: bool,
 ) -> Result<Vec<GuestRegionMmap>, MemoryError> {
-    create(regions, libc::MAP_PRIVATE, Some(file), track_dirty_pages)
+    let mmap_flags = if shared {
+        libc::MAP_SHARED
+    } else {
+        libc::MAP_PRIVATE
+    };
+    create(regions, mmap_flags, Some(file), track_dirty_pages)
 }
 
 /// Defines the interface for snapshotting memory.
