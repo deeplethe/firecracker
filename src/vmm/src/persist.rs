@@ -458,7 +458,11 @@ fn guest_memory_from_file(
     track_dirty_pages: bool,
     shared: bool,
 ) -> Result<Vec<GuestRegionMmap>, GuestMemoryFromFileError> {
-    let mem_file = File::open(mem_file_path)?;
+    let mem_file = if shared {
+        OpenOptions::new().read(true).write(true).open(mem_file_path)?
+    } else {
+        File::open(mem_file_path)?
+    };
     let guest_mem =
         memory::snapshot_file(mem_file, mem_state.regions(), track_dirty_pages, shared)?;
     Ok(guest_mem)
