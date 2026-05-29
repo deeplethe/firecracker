@@ -96,6 +96,7 @@ fn parse_put_snapshot_load(body: &Body) -> Result<ParsedRequest, RequestError> {
                 // either `mem_file_path` or `mem_backend` field is always specified.
                 backend_path: snapshot_config.mem_file_path.unwrap(),
                 backend_type: MemBackendType::File,
+                shared: false,
             }
         }
     };
@@ -179,6 +180,7 @@ mod tests {
             mem_backend: MemBackendConfig {
                 backend_path: PathBuf::from("bar"),
                 backend_type: MemBackendType::File,
+                shared: false,
             },
             enable_diff_snapshots: false,
             resume_vm: false,
@@ -209,6 +211,7 @@ mod tests {
             mem_backend: MemBackendConfig {
                 backend_path: PathBuf::from("bar"),
                 backend_type: MemBackendType::File,
+                shared: false,
             },
             enable_diff_snapshots: true,
             resume_vm: false,
@@ -239,6 +242,7 @@ mod tests {
             mem_backend: MemBackendConfig {
                 backend_path: PathBuf::from("bar"),
                 backend_type: MemBackendType::Uffd,
+                shared: false,
             },
             enable_diff_snapshots: false,
             resume_vm: true,
@@ -275,6 +279,7 @@ mod tests {
             mem_backend: MemBackendConfig {
                 backend_path: PathBuf::from("bar"),
                 backend_type: MemBackendType::Uffd,
+                shared: false,
             },
             enable_diff_snapshots: false,
             resume_vm: true,
@@ -305,6 +310,7 @@ mod tests {
             mem_backend: MemBackendConfig {
                 backend_path: PathBuf::from("bar"),
                 backend_type: MemBackendType::File,
+                shared: false,
             },
             enable_diff_snapshots: false,
             resume_vm: true,
