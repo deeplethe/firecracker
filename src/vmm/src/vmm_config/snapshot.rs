@@ -18,6 +18,11 @@ pub enum SnapshotType {
     /// Full snapshot.
     #[default]
     Full,
+    /// VM state only — no memory dump. The `mem_file_path` in
+    /// [`CreateSnapshotParams`] is ignored; callers that own the
+    /// guest-memory backing externally (e.g., forkd via memfd +
+    /// MAP_SHARED) use this to skip FC writing memory.bin inline.
+    VmstateOnly,
 }
 
 /// Specifies the method through which guest memory will get populated when

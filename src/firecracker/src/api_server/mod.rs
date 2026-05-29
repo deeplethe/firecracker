@@ -158,6 +158,10 @@ impl ApiServer {
                     &METRICS.latencies_us.diff_create_snapshot,
                     "create diff snapshot",
                 )),
+                SnapshotType::VmstateOnly => Some((
+                    &METRICS.latencies_us.full_create_snapshot,
+                    "create vmstate-only snapshot",
+                )),
             },
             VmmAction::LoadSnapshot(_) => {
                 Some((&METRICS.latencies_us.load_snapshot, "load snapshot"))

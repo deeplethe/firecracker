@@ -269,6 +269,13 @@ impl Vm {
                 self.reset_dirty_bitmap();
                 self.guest_memory().reset_dirty();
             }
+            // VmstateOnly is filtered out in `create_snapshot` before
+            // this function is ever called. If we get here, a future
+            // caller forgot the guard — fail loudly rather than write
+            // partial memory.
+            SnapshotType::VmstateOnly => unreachable!(
+                "snapshot_memory_to_file should not be called with VmstateOnly;                  create_snapshot guards this"
+            ),
         };
 
         file.flush()

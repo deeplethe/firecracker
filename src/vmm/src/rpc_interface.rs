@@ -791,6 +791,19 @@ impl RuntimeApiController {
                     elapsed_time_us
                 );
             }
+            SnapshotType::VmstateOnly => {
+                // Reuse the full-snapshot latency metric — for the operator
+                // perspective "create snapshot" still happened; the only
+                // difference is forkd owns memory externally.
+                let elapsed_time_us = update_metric_with_elapsed_time(
+                    &METRICS.latencies_us.vmm_full_create_snapshot,
+                    create_start_us,
+                );
+                info!(
+                    "'create vmstate-only snapshot' VMM action took {} us.",
+                    elapsed_time_us
+                );
+            }
         }
         Ok(VmmData::Empty)
     }
