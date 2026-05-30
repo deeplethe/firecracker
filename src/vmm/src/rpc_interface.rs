@@ -34,6 +34,7 @@ use crate::vmm_config::net::{
     NetworkInterfaceConfig, NetworkInterfaceError, NetworkInterfaceUpdateConfig,
 };
 use crate::vmm_config::snapshot::{CreateSnapshotParams, LoadSnapshotParams, SnapshotType};
+use crate::vmm_config::wp_uffd::SetupWpUffdParams;
 use crate::vmm_config::vsock::{VsockConfigError, VsockDeviceConfig};
 use crate::vmm_config::{self, RateLimiterUpdate};
 
@@ -53,6 +54,12 @@ pub enum VmmAction {
     /// Create a snapshot using as input the `CreateSnapshotParams`. This action can only be called
     /// after the microVM has booted and only when the microVM is in `Paused` state.
     CreateSnapshot(CreateSnapshotParams),
+    /// Set up a write-protected userfaultfd over guest memory, register
+    /// every region in WP mode, and send the resulting fd to a UDS the
+    /// caller is listening on (via SCM_RIGHTS). Can only be called
+    /// after the microVM has booted; does not require the VM to be
+    /// paused.
+    SetupWpUffd(SetupWpUffdParams),
     /// Get the balloon device configuration.
     GetBalloonConfig,
     /// Get the ballon device latest statistics.
@@ -142,6 +149,8 @@ pub enum VmmActionError {
     InternalVmm(#[from] VmmError),
     /// Load snapshot error: {0}
     LoadSnapshot(#[from] LoadSnapshotError),
+    /// Setup WP uffd error: {0}
+    SetupWpUffd(#[from] crate::persist::SetupWpUffdError),
     /// Logger error: {0}
     Logger(#[from] crate::logger::LoggerUpdateError),
     /// Machine config error: {0}
@@ -438,6 +447,7 @@ impl<'a> PrebootApiController<'a> {
             SetEntropyDevice(config) => self.set_entropy_device(config),
             // Operations not allowed pre-boot.
             CreateSnapshot(_)
+            | SetupWpUffd(_)
             | FlushMetrics
             | Pause
             | Resume
@@ -627,6 +637,7 @@ impl RuntimeApiController {
         match request {
             // Supported operations allowed post-boot.
             CreateSnapshot(snapshot_create_cfg) => self.create_snapshot(&snapshot_create_cfg),
+            SetupWpUffd(params) => self.setup_wp_uffd(&params),
             FlushMetrics => self.flush_metrics(),
             GetBalloonConfig => self
                 .vmm
@@ -747,6 +758,17 @@ impl RuntimeApiController {
             .send_ctrl_alt_del()
             .map(|()| VmmData::Empty)
             .map_err(VmmActionError::InternalVmm)
+    }
+
+    fn setup_wp_uffd(
+        &mut self,
+        params: &SetupWpUffdParams,
+    ) -> Result<VmmData, VmmActionError> {
+        log_dev_preview_warning("Snapshot-side WP userfaultfd", None);
+        let locked_vmm = self.vmm.lock().expect("Poisoned lock");
+        crate::persist::setup_wp_uffd(&locked_vmm, &params.socket)
+            .map_err(VmmActionError::SetupWpUffd)?;
+        Ok(VmmData::Empty)
     }
 
     fn create_snapshot(

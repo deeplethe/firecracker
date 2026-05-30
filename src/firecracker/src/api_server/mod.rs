@@ -166,6 +166,12 @@ impl ApiServer {
             VmmAction::LoadSnapshot(_) => {
                 Some((&METRICS.latencies_us.load_snapshot, "load snapshot"))
             }
+            VmmAction::SetupWpUffd(_) => Some((
+                // Reuse full-snapshot bucket — setup is one syscall + send,
+                // doesn't warrant its own metric for v0.4 experimental.
+                &METRICS.latencies_us.full_create_snapshot,
+                "setup wp uffd",
+            )),
             VmmAction::Pause => Some((&METRICS.latencies_us.pause_vm, "pause vm")),
             VmmAction::Resume => Some((&METRICS.latencies_us.resume_vm, "resume vm")),
             _ => None,

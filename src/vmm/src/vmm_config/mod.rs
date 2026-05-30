@@ -32,6 +32,7 @@ pub mod mmds;
 pub mod net;
 /// Wrapper for configuring microVM snapshots and the microVM state.
 pub mod snapshot;
+pub mod wp_uffd;
 /// Wrapper for configuring the vsock devices attached to the microVM.
 pub mod vsock;
 

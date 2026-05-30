@@ -25,6 +25,7 @@ use super::request::metrics::parse_put_metrics;
 use super::request::mmds::{parse_get_mmds, parse_patch_mmds, parse_put_mmds};
 use super::request::net::{parse_patch_net, parse_put_net};
 use super::request::snapshot::{parse_patch_vm_state, parse_put_snapshot};
+use super::request::wp_uffd::parse_put_uffd;
 use super::request::version::parse_get_version;
 use super::request::vsock::parse_put_vsock;
 
@@ -97,6 +98,7 @@ impl TryFrom<&Request> for ParsedRequest {
                 parse_put_net(body, path_tokens.next())
             }
             (Method::Put, "snapshot", Some(body)) => parse_put_snapshot(body, path_tokens.next()),
+            (Method::Put, "uffd", Some(body)) => parse_put_uffd(body, path_tokens.next()),
             (Method::Put, "vsock", Some(body)) => parse_put_vsock(body),
             (Method::Put, "entropy", Some(body)) => parse_put_entropy(body),
             (Method::Put, _, None) => method_to_error(Method::Put),

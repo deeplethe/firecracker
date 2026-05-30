@@ -37,7 +37,7 @@ use crate::vmm_config::machine_config::{HugePageConfig, MachineConfigError, Mach
 use crate::vmm_config::snapshot::{CreateSnapshotParams, LoadSnapshotParams, MemBackendType, SnapshotType};
 use crate::vstate::kvm::KvmState;
 use crate::vstate::memory;
-use crate::vstate::memory::{GuestMemoryState, GuestRegionMmap, MemoryError};
+use crate::vstate::memory::{GuestMemory, GuestMemoryRegion, GuestMemoryState, GuestRegionMmap, MemoryError};
 use crate::vstate::vcpu::{VcpuSendEventError, VcpuState};
 use crate::vstate::vm::VmState;
 use crate::{EventManager, Vmm, vstate};
@@ -483,6 +483,68 @@ pub enum GuestMemoryFromUffdError {
     Connect(#[from] std::io::Error),
     /// Failed to sends file descriptor: {0}
     Send(#[from] vmm_sys_util::errno::Error),
+}
+
+/// Error from [`setup_wp_uffd`].
+#[derive(Debug, thiserror::Error, displaydoc::Display)]
+pub enum SetupWpUffdError {
+    /// Failed to create userfaultfd: {0}
+    Create(userfaultfd::Error),
+    /// Failed to register guest memory region with userfaultfd: {0}
+    Register(userfaultfd::Error),
+    /// Failed to connect to listener UDS: {0}
+    Connect(#[from] std::io::Error),
+    /// Failed to send file descriptor: {0}
+    Send(#[from] vmm_sys_util::errno::Error),
+    /// Failed to serialize region descriptors: {0}
+    Serialize(#[from] serde_json::Error),
+}
+
+/// Set up a snapshot-side WP userfaultfd over the running VM's guest
+/// memory, then hand the fd to the listener at `socket_path` via
+/// SCM_RIGHTS.
+///
+/// Counterpart to [`guest_memory_from_uffd`] (the restore-side UFFD
+/// path): same handshake, but register mode is WP instead of MISSING,
+/// and we don't allocate new guest memory — we register over what FC
+/// is already running.
+pub fn setup_wp_uffd(
+    vmm: &crate::Vmm,
+    socket_path: &std::path::Path,
+) -> Result<(), SetupWpUffdError> {
+    use userfaultfd::{FeatureFlags, RegisterMode, UffdBuilder};
+
+    let uffd = UffdBuilder::new()
+        .require_features(FeatureFlags::PAGEFAULT_FLAG_WP)
+        .close_on_exec(true)
+        .non_blocking(true)
+        .user_mode_only(false)
+        .create()
+        .map_err(SetupWpUffdError::Create)?;
+
+    let guest_memory = vmm.vm.guest_memory();
+    let mut backend_mappings: Vec<GuestRegionUffdMapping> = Vec::new();
+    let mut offset = 0u64;
+    for region in guest_memory.iter() {
+        let addr = region.as_ptr() as *mut libc::c_void;
+        let size = region.size();
+        uffd.register_with_mode(addr, size, RegisterMode::WRITE_PROTECT)
+            .map_err(SetupWpUffdError::Register)?;
+        #[allow(deprecated)]
+        backend_mappings.push(GuestRegionUffdMapping {
+            base_host_virt_addr: region.as_ptr() as u64,
+            size,
+            offset,
+            page_size: 4096,
+            page_size_kib: 4096,
+        });
+        offset += size as u64;
+    }
+
+    let mappings_json = serde_json::to_string(&backend_mappings)?;
+    let socket = UnixStream::connect(socket_path)?;
+    socket.send_with_fd(mappings_json.as_bytes(), uffd.as_raw_fd())?;
+    Ok(())
 }
 
 fn guest_memory_from_uffd(
